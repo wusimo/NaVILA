@@ -55,7 +55,7 @@ def is_local(model_name_or_path: str) -> bool:
     return os.path.isdir(model_name_or_path)
 
 
-def get_checkpoint_path(output_dir: str, checkpoint_prefix: str = "checkpoint") -> str | None:
+def get_checkpoint_path(output_dir: str, checkpoint_prefix: str = "checkpoint"):
     output_dir = os.path.abspath(output_dir)
     pathlib_dir = pathlib.Path(output_dir)
 
