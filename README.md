@@ -150,6 +150,27 @@ cp -rv ./llava/train/deepspeed_replace/* $site_pkg_path/deepspeed/
 pip install webdataset==0.1.103
 ```
 
+### Known Build Issues
+
+Building habitat-sim v0.1.7 on modern systems requires several fixes:
+
+| Issue | Fix |
+|-------|-----|
+| pybind11 2.6.2 won't compile with Python 3.10 | Check out pybind11 **v2.10.4** in `deps/habitat-sim/src/deps/pybind11/` |
+| NumPy 2.x causes segfaults | Pin `numpy<2` (e.g., `pip install numpy==1.26.4`) |
+| GLX segfaults at non-default resolution | Rebuild habitat-sim with EGL: `HEADLESS=True pip install -e . --no-build-isolation` from the habitat-sim directory |
+| `np.float` removed in NumPy 1.24+ | Run `python evaluation/scripts/habitat_sim_autofix.py` (already listed above) |
+
+### Required Environment Variables
+
+After building habitat-sim from source, you must set these before running evaluation:
+
+```bash
+conda activate navila-eval
+export LD_LIBRARY_PATH="<HABITAT_SIM_DIR>/habitat_sim/_ext:$LD_LIBRARY_PATH"
+export CUDA_HOME=$CONDA_PREFIX
+```
+
 ### Data
 Please follow [VLN-CE](https://github.com/jacobkrantz/VLN-CE) and download R2R and RxR annotations, and scene data inside the `evaluation/data` folder. The data should have structure like:
 ```graphql
@@ -176,6 +197,9 @@ data/scene_datasets
 |   |    ├─ ...
 |   ├─ ...
 ```
+
+> **Partial scene support**: If you only have a subset of Matterport3D scenes, you can create a filtered dataset split (e.g., `val_unseen_partial`) containing only episodes from your available scenes. Use this split name in place of `val_unseen` when running evaluation.
+
 ### Running Evaluation
 1. Download the checkpoint from [a8cheng/navila-llama3-8b-8f](https://huggingface.co/a8cheng/navila-llama3-8b-8f).
 2. Run evaluation on R2R using:
@@ -192,9 +216,20 @@ Examples:
     ```bash
     bash scripts/eval/r2r.sh CKPT_PATH 8 0 "0,1,2,3,4,5,6,7"
     ```
-3. Visualized videos are saved in 
+* Single GPU with a custom split (e.g., partial scene subset):
+    ```bash
+    cd evaluation
+    python run.py \
+        --exp-config vlnce_baselines/config/r2r_baselines/navila.yaml \
+        --run-type eval \
+        --num-chunks 1 --chunk-idx 0 \
+        EVAL_CKPT_PATH_DIR <CKPT_PATH> \
+        EVAL.SPLIT <SPLIT_NAME> \
+        EVAL.EPISODE_COUNT -1
+    ```
+3. Visualized videos are saved in
 ```bash
-./eval_out/CKPT_NAME/VLN-CE-v1/val_unseen/videos
+./eval_out/CKPT_NAME/VLN-CE-v1/<SPLIT>/videos
 ```
 <p align="center">
   <img src="assets/sample.gif" width="600">
@@ -202,8 +237,30 @@ Examples:
 4. Aggregate results and view the scores
 
 ```bash
-python scripts/eval_jsons.py ./eval_out/CKPT_NAME/VLN-CE-v1/val_unseen NUM_CHUNKS
+python scripts/eval_jsons.py ./eval_out/CKPT_NAME/VLN-CE-v1/<SPLIT> NUM_CHUNKS
 ```
+
+> **Note**: If a previous evaluation exists for the same split/chunk, the script will print `skipping -- evaluation exists` and exit. Remove or rename the results JSON in `eval_out/` to re-run.
+
+### Interactive Scene Viewer
+
+An interactive viewer is included for exploring Matterport3D scenes directly in Habitat-Sim (**requires a display**):
+
+```bash
+cd evaluation
+python interactive_viewer.py --scene data/scene_datasets/mp3d/<SCENE_ID>/<SCENE_ID>.glb
+```
+
+Controls:
+| Key | Action |
+|-----|--------|
+| W/S | Move forward/backward |
+| A/D | Strafe left/right |
+| Arrow keys | Turn and look up/down |
+| T | Toggle depth visualization |
+| R | Reset agent position |
+| P | Print current position |
+| Q / ESC | Quit |
 
 _______________________________________________________________
 
